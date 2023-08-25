@@ -1,0 +1,67 @@
+PHONY := __build
+__build:
+
+
+# 初始化当前目录编译标记
+EXTRA_CFLAGS :=
+
+# 初始化当前子目录列表
+sub_dirs :=
+
+# 初始化当前源文件列表
+source_files :=
+
+
+# 包含当前目录Makefile
+include Makefile
+
+
+__cur_path := $(shell pwd)
+__build_path := $(subst $(PROJ_ROOT),$(PROJ_BUILD_PATH),$(__cur_path))
+
+
+__cur_sub_dirs := $(sub_dirs)
+__build_sub_dirs := $(subst $(__cur_path),$(__build_path),$(__cur_sub_dirs))
+__sub_dir_objects := $(foreach __dir__,$(__build_sub_dirs),$(__dir__)/built-in.o)
+
+
+__object_files := $(subst .c,.o,$(wildcard $(source_files)))
+__build_objects := $(subst $(__cur_path),$(__build_path),$(__object_files))
+
+
+__build_depends := $(wildcard $(subst .o,.d,$(__build_objects)))
+
+ifneq ($(__build_depends),)
+  include $(__build_depends)
+endif
+
+
+
+define create_dirs
+	@ $(shell if [ ! -d $(1) ]; then mkdir -p $(1); fi)
+endef
+
+
+
+PHONY += $(__cur_sub_dirs)
+
+
+__build : $(__cur_sub_dirs) $(__build_path)/built-in.o
+
+
+$(__cur_sub_dirs):
+	$(MAKE) -C $@ -f $(TOPDIR)/make.build
+
+
+$(__build_path)/built-in.o : $(__cur_sub_dirs) $(__build_objects)
+	$(LD) -r -o $@ $(__build_objects) $(__sub_dir_objects)
+
+
+__depend_file = $(subst .o,.d,$@)
+
+
+$(__build_path)/%.o : %.c
+	@ $(call create_dirs, $(dir $@))
+	$(CC) $(CFLAGS) $(EXTRA_CFLAGS) $(CFLAGS_$@) -Wp,-MD,$(__depend_file) -c -o $@ $<
+	
+.PHONY : $(PHONY)
